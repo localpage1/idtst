@@ -84,9 +84,8 @@ async function showAllIndexedDBs() {
                 const key = keys[index];
                 entry.innerHTML = `<div class="key">🔑 ${JSON.stringify(key)}</div>`;
 
-                // 判断是否为 ArrayBuffer（图片二进制）
                 if (value instanceof ArrayBuffer) {
-                  const blob = new Blob([value], { type: 'image/jpeg' }); // 或 image/png 视情况调整
+                  const blob = new Blob([value], { type: 'image/jpeg' });
                   const url = URL.createObjectURL(blob);
                   const img = document.createElement('img');
                   img.src = url;
@@ -138,35 +137,45 @@ async function showAllIndexedDBs() {
 document.getElementById("uploadBtn").onchange = (e) => {
   const file = e.target.files[0];
   const reader = new FileReader();
-  
-  reader.onload = () => {
-    const rrequest = indexedDB.open("SDB", 8);
 
-    rrequest.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      // 创建对象存储 'store' 如果它不存在
+  reader.onload = () => {
+    const rrequest = indexedDB.open("SDB", 99); // 升版本，触发 onupgradeneeded
+
+    rrequest.onupgradeneeded = (event) => {
+      const db = event.target.result;
       if (!db.objectStoreNames.contains("store")) {
         db.createObjectStore("store", { autoIncrement: true });
+        console.log("✅ 创建了对象存储 store");
       }
     };
 
     rrequest.onsuccess = () => {
       const db = rrequest.result;
+      if (!db.objectStoreNames.contains("store")) {
+        console.error("❌ 对象存储 'store' 不存在");
+        return;
+      }
+
       const tx = db.transaction("store", "readwrite");
       const store = tx.objectStore("store");
-      store.put(reader.result); // 存储图片的 ArrayBuffer 数据
+      store.put(reader.result);
       console.log("✅ 成功写入 ArrayBuffer 数据");
+
+      tx.oncomplete = () => {
+        db.close();
+        showAllIndexedDBs(); // 写完刷新展示
+      };
     };
-    
+
     rrequest.onerror = () => {
       console.error("❌ 无法打开 IndexedDB 数据库");
     };
   };
 
-  reader.readAsArrayBuffer(file); // 读取文件为 ArrayBuffer
+  reader.readAsArrayBuffer(file);
 };
 
-// 调用函数读取数据库
+// 启动时显示所有数据库内容
 showAllIndexedDBs();
 </script>
 
