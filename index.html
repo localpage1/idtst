@@ -1,54 +1,50 @@
-// 打开数据库
-const rrequest = indexedDB.open("SDB", 8); // 注意升级版本号
-rrequest.onupgradeneeded = (e) => {
-  e.target.result.createObjectStore("sttore", { autoIncrement: true });
-};
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>IndexedDB 图片查看器</title>
+</head>
+<body>
+  <h1>图片阅读器</h1>
+  <div id="container"></div>
 
-rrequest.onsuccess = () => {
-  const db = rrequest.result;
-
-  // 创建文件选择器
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.onchange = () => {
-    const file = input.files[0];
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const buffer = reader.result;
-
-      // 写入 IndexedDB
-      const tx = db.transaction("sttore", "readwrite");
-      const store = tx.objectStore("sttore");
-      const putRequest = store.put(buffer);
-
-      putRequest.onsuccess = (e) => {
-        const key = e.target.result;
-
-        // 读取回来用于展示
-        const readTx = db.transaction("sttore", "readonly");
-        const readStore = readTx.objectStore("sttore");
-        const getRequest = readStore.get(key);
-
-        getRequest.onsuccess = () => {
-          const data = getRequest.result;
-          const blob = new Blob([data], { type: file.type });
-          const url = URL.createObjectURL(blob);
-
-          // 显示图片
-          const img = document.createElement("img");
-          img.src = url;
-          img.style.maxWidth = "200px";
-          document.body.appendChild(img);
-
-          console.log("图片已显示，Blob 长度:", data.byteLength);
-        };
-      };
+  <script>
+    const rrequest = indexedDB.open("SDB", 7);
+    rrequest.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore("sttore", { autoIncrement: true });
     };
 
-    reader.readAsArrayBuffer(file);
-  };
+    rrequest.onsuccess = () => {
+      const db = rrequest.result;
 
-  input.click();
-};
+      // 显示已存图片
+      const tx = db.transaction("sttore", "readonly");
+      const store = tx.objectStore("sttore");
+      const getAllReq = store.getAll();
+
+      getAllReq.onsuccess = () => {
+        const container = document.getElementById("container");
+        getAllReq.result.forEach((data, i) => {
+          // 判断是否是 ArrayBuffer（二进制）而不是字符串
+          if (data instanceof ArrayBuffer) {
+            const blob = new Blob([data], { type: "image/jpeg" }); // 你可以改成 image/png
+            const url = URL.createObjectURL(blob);
+            const img = document.createElement("img");
+            img.src = url;
+            img.style.maxWidth = "200px";
+            img.style.margin = "10px";
+            container.appendChild(img);
+          } else {
+            // 如果是旧数据（比如 base64 字符串），仍然兼容
+            const img = document.createElement("img");
+            img.src = data;
+            img.style.maxWidth = "200px";
+            img.style.margin = "10px";
+            container.appendChild(img);
+          }
+        });
+      };
+    };
+  </script>
+</body>
+</html>
