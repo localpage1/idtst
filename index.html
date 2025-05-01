@@ -11,12 +11,17 @@
     code { background: #f0f0f0; padding: 2px 4px; display: inline-block; }
     .key { font-weight: bold; }
     hr { border: none; border-top: 1px solid #ccc; margin: 20px 0; }
+    #uploadBtn { margin: 10px 0; }
   </style>
 </head>
 <body>
 
 <h1>IndexedDB Viewer (只读)</h1>
 <div id="output"></div>
+
+<!-- 上传按钮 -->
+<input type="file" id="uploadBtn" accept="image/*">
+<p>选择一张图片上传到 IndexedDB 中。</p>
 
 <script>
 console.log("开始读取 IndexedDB 数据库...");
@@ -129,6 +134,31 @@ async function showAllIndexedDBs() {
   }
 }
 
+// 处理上传图片并存储到 IndexedDB
+document.getElementById("uploadBtn").onchange = (e) => {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  
+  reader.onload = () => {
+    const rrequest = indexedDB.open("SDB", 7);
+
+    rrequest.onsuccess = () => {
+      const db = rrequest.result;
+      const tx = db.transaction("sttore", "readwrite");
+      const store = tx.objectStore("sttore");
+      store.put(reader.result); // 存储图片的 ArrayBuffer 数据
+      console.log("✅ 成功写入 ArrayBuffer 数据");
+    };
+    
+    rrequest.onerror = () => {
+      console.error("❌ 无法打开 IndexedDB 数据库");
+    };
+  };
+
+  reader.readAsArrayBuffer(file); // 读取文件为 ArrayBuffer
+};
+
+// 调用函数读取数据库
 showAllIndexedDBs();
 </script>
 
