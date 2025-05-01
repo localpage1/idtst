@@ -20,8 +20,8 @@
 <div id="output"></div>
 
 <!-- 上传按钮 -->
-<input type="file" id="uploadBtn" accept="image/*">
-<p>选择一张图片上传到 IndexedDB 中。</p>
+<input type="file" id="uploadBtn" accept="image/*" multiple>
+<p>选择图片上传（多选），以文件名为键名，保存为 Blob。</p>
 
 <script>
 console.log("开始读取 IndexedDB 数据库...");
@@ -48,7 +48,6 @@ async function showAllIndexedDBs() {
       const request = indexedDB.open(name, version);
 
       request.onsuccess = () => {
-        console.log(`成功打开数据库: ${name}`);
         const db = request.result;
         const stores = Array.from(db.objectStoreNames);
 
@@ -71,8 +70,6 @@ async function showAllIndexedDBs() {
               const values = getAllRequest.result;
               const keys = getAllKeysRequest.result;
 
-              console.log(`读取对象存储 "${storeName}"：共 ${keys.length} 条记录`);
-
               const storeDiv = document.createElement('div');
               storeDiv.className = 'store';
               storeDiv.innerHTML = `<h3>📦 Store: <code>${storeName}</code></h3>`;
@@ -84,21 +81,16 @@ async function showAllIndexedDBs() {
                 const key = keys[index];
                 entry.innerHTML = `<div class="key">🔑 ${JSON.stringify(key)}</div>`;
 
-                if (value instanceof ArrayBuffer) {
-                  const blob = new Blob([value], { type: 'image/jpeg' });
-                  const url = URL.createObjectURL(blob);
+                // 如果是 Blob（如图片）
+                if (value instanceof Blob && value.type.startsWith('image/')) {
+                  const url = URL.createObjectURL(value);
                   const img = document.createElement('img');
                   img.src = url;
                   img.className = 'image-preview';
                   entry.appendChild(img);
-                } else if (typeof value === 'string' && value.startsWith('data:image/')) {
-                  const img = document.createElement('img');
-                  img.src = value;
-                  img.className = 'image-preview';
-                  entry.appendChild(img);
                 }
 
-                const valStr = (typeof value === 'object' && !(value instanceof ArrayBuffer))
+                const valStr = (typeof value === 'object' && !(value instanceof Blob))
                   ? JSON.stringify(value)
                   : String(value);
                 entry.innerHTML += `<div>📄 Value: <code>${valStr}</code></div>`;
@@ -133,49 +125,43 @@ async function showAllIndexedDBs() {
   }
 }
 
-// 处理上传图片并存储到 IndexedDB
+// 上传文件并保存为 Blob
 document.getElementById("uploadBtn").onchange = (e) => {
-  const file = e.target.files[0];
-  const reader = new FileReader();
+  const files = e.target.files;
+  if (!files.length) return;
 
-  reader.onload = () => {
-    const rrequest = indexedDB.open("SDB", 1); // 升版本，触发 onupgradeneeded
+  const request = indexedDB.open("SDB", 8);
 
-    rrequest.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains("store")) {
-        db.createObjectStore("store", { autoIncrement: true });
-        console.log("✅ 创建了对象存储 store");
-      }
-    };
+  request.onupgradeneeded = () => {
+    const db = request.result;
+    if (!db.objectStoreNames.contains("store")) {
+      db.createObjectStore("store");
+    }
+  };
 
-    rrequest.onsuccess = () => {
-      const db = rrequest.result;
-      if (!db.objectStoreNames.contains("store")) {
-        console.error("❌ 对象存储 'store' 不存在");
-        return;
-      }
+  request.onsuccess = () => {
+    const db = request.result;
+    const tx = db.transaction("store", "readwrite");
+    const store = tx.objectStore("store");
 
-      const tx = db.transaction("store", "readwrite");
-      const store = tx.objectStore("store");
-      store.put(reader.result);
-      console.log("✅ 成功写入 ArrayBuffer 数据");
+    for (const file of files) {
+      const blob = new Blob([file], { type: file.type });
+      store.put(blob, file.name);
+      console.log(`✅ 写入文件: ${file.name}`);
+    }
 
-      tx.oncomplete = () => {
-        db.close();
-        showAllIndexedDBs(); // 写完刷新展示
-      };
-    };
-
-    rrequest.onerror = () => {
-      console.error("❌ 无法打开 IndexedDB 数据库");
+    tx.oncomplete = () => {
+      console.log("✅ 所有文件写入完成");
+      showAllIndexedDBs(); // 刷新显示
     };
   };
 
-  reader.readAsArrayBuffer(file);
+  request.onerror = () => {
+    console.error("❌ 无法打开 IndexedDB 数据库");
+  };
 };
 
-// 启动时显示所有数据库内容
+// 初次调用
 showAllIndexedDBs();
 </script>
 
