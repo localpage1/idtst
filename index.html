@@ -1,126 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>IndexedDB Viewer</title>
-  <style>
-    body { font-family: sans-serif; padding: 10px; }
-    h2, h3 { margin-top: 1em; }
-    .db, .store, .entry { margin-bottom: 1em; }
-    .image-preview { max-height: 100px; display: block; margin-top: 5px; }
-    code { background: #f0f0f0; padding: 2px 4px; display: inline-block; }
-    .key { font-weight: bold; }
-    hr { border: none; border-top: 1px solid #ccc; margin: 20px 0; }
-  </style>
-</head>
-<body>
+// 打开数据库
+const rrequest = indexedDB.open("SDB", 8); // 注意升级版本号
+rrequest.onupgradeneeded = (e) => {
+  e.target.result.createObjectStore("sttore", { autoIncrement: true });
+};
 
-<h1>IndexedDB Viewer (只读)</h1>
-<div id="output"></div>
+rrequest.onsuccess = () => {
+  const db = rrequest.result;
 
-<script>
-console.log("开始读取 IndexedDB 数据库...");
+  // 创建文件选择器
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = () => {
+    const file = input.files[0];
+    const reader = new FileReader();
 
-async function showAllIndexedDBs() {
-  const output = document.getElementById('output');
-  output.innerHTML = '';
+    reader.onload = () => {
+      const buffer = reader.result;
 
-  if (!indexedDB.databases) {
-    output.innerHTML = '<p><b>indexedDB.databases()</b> is not supported in this browser.</p>';
-    return;
-  }
+      // 写入 IndexedDB
+      const tx = db.transaction("sttore", "readwrite");
+      const store = tx.objectStore("sttore");
+      const putRequest = store.put(buffer);
 
-  const databases = await indexedDB.databases();
-  console.log(`检测到 ${databases.length} 个数据库`);
+      putRequest.onsuccess = (e) => {
+        const key = e.target.result;
 
-  for (const { name, version } of databases) {
-    const dbDiv = document.createElement('div');
-    dbDiv.className = 'db';
-    dbDiv.innerHTML = `<h2>📁 Database: <code>${name}</code> (v${version})</h2>`;
-    output.appendChild(dbDiv);
+        // 读取回来用于展示
+        const readTx = db.transaction("sttore", "readonly");
+        const readStore = readTx.objectStore("sttore");
+        const getRequest = readStore.get(key);
 
-    await new Promise((resolve) => {
-      const request = indexedDB.open(name, version);
+        getRequest.onsuccess = () => {
+          const data = getRequest.result;
+          const blob = new Blob([data], { type: file.type });
+          const url = URL.createObjectURL(blob);
 
-      request.onsuccess = () => {
-        console.log(`成功打开数据库: ${name}`);
-        const db = request.result;
-        const stores = Array.from(db.objectStoreNames);
+          // 显示图片
+          const img = document.createElement("img");
+          img.src = url;
+          img.style.maxWidth = "200px";
+          document.body.appendChild(img);
 
-        if (stores.length === 0) {
-          dbDiv.innerHTML += `<p>No object stores found.</p>`;
-          resolve();
-          return;
-        }
-
-        let pendingStores = stores.length;
-
-        stores.forEach(storeName => {
-          const tx = db.transaction(storeName, 'readonly');
-          const store = tx.objectStore(storeName);
-          const getAllRequest = store.getAll();
-          const getAllKeysRequest = store.getAllKeys();
-
-          getAllRequest.onsuccess = () => {
-            getAllKeysRequest.onsuccess = () => {
-              const values = getAllRequest.result;
-              const keys = getAllKeysRequest.result;
-
-              console.log(`读取对象存储 "${storeName}"：共 ${keys.length} 条记录`);
-
-              const storeDiv = document.createElement('div');
-              storeDiv.className = 'store';
-              storeDiv.innerHTML = `<h3>📦 Store: <code>${storeName}</code></h3>`;
-
-              values.forEach((value, index) => {
-                const entry = document.createElement('div');
-                entry.className = 'entry';
-
-                const key = keys[index];
-                entry.innerHTML = `<div class="key">🔑 ${JSON.stringify(key)}</div>`;
-
-                if (typeof value === 'string' && value.startsWith('data:image/')) {
-                  const img = document.createElement('img');
-                  img.src = value;
-                  img.className = 'image-preview';
-                  entry.appendChild(img);
-                }
-
-                const valStr = (typeof value === 'object') ? JSON.stringify(value) : String(value);
-                entry.innerHTML += `<div>📄 Value: <code>${valStr}</code></div>`;
-
-                storeDiv.appendChild(entry);
-              });
-
-              dbDiv.appendChild(storeDiv);
-
-              if (--pendingStores === 0) resolve();
-            };
-          };
-
-          getAllRequest.onerror = getAllKeysRequest.onerror = () => {
-            console.error(`❌ 无法读取对象存储 "${storeName}"`);
-            const errorDiv = document.createElement('div');
-            errorDiv.textContent = `❌ Failed to read store "${storeName}".`;
-            dbDiv.appendChild(errorDiv);
-            if (--pendingStores === 0) resolve();
-          };
-        });
+          console.log("图片已显示，Blob 长度:", data.byteLength);
+        };
       };
+    };
 
-      request.onerror = () => {
-        console.error(`❌ 无法打开数据库 "${name}"`);
-        dbDiv.innerHTML += `<p style="color:red;">❌ Failed to open database "${name}".</p>`;
-        resolve();
-      };
-    });
+    reader.readAsArrayBuffer(file);
+  };
 
-    output.appendChild(document.createElement('hr'));
-  }
-}
-
-showAllIndexedDBs();
-</script>
-
-</body>
-</html>
+  input.click();
+};
