@@ -140,7 +140,7 @@ document.getElementById("uploadBtn").onchange = (e) => {
   const reader = new FileReader();
   
   reader.onload = () => {
-    const rrequest = indexedDB.open("SDB", 7);
+    const rrequest = indexedDB.open("SDB", 8);
 
     rrequest.onsuccess = () => {
       const db = rrequest.result;
