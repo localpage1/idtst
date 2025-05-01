@@ -139,7 +139,7 @@ document.getElementById("uploadBtn").onchange = (e) => {
   const reader = new FileReader();
 
   reader.onload = () => {
-    const rrequest = indexedDB.open("SDB", 99); // 升版本，触发 onupgradeneeded
+    const rrequest = indexedDB.open("SDB", 1); // 升版本，触发 onupgradeneeded
 
     rrequest.onupgradeneeded = (event) => {
       const db = event.target.result;
