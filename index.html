@@ -144,8 +144,8 @@ document.getElementById("uploadBtn").onchange = (e) => {
 
     rrequest.onsuccess = () => {
       const db = rrequest.result;
-      const tx = db.transaction("sttore", "readwrite");
-      const store = tx.objectStore("sttore");
+      const tx = db.transaction("store", "readwrite");
+      const store = tx.objectStore("store");
       store.put(reader.result); // 存储图片的 ArrayBuffer 数据
       console.log("✅ 成功写入 ArrayBuffer 数据");
     };
