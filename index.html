@@ -3,47 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <title>IndexedDB 图片查看器</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    img { max-width: 200px; margin: 10px; border: 1px solid #ccc; }
+    .entry { margin-bottom: 20px; padding: 10px; border-bottom: 1px dashed #aaa; }
+    .meta { font-size: 0.9em; color: #444; }
+  </style>
 </head>
 <body>
-  <h1>图片阅读器</h1>
-  <div id="container"></div>
+  <h1>📦 IndexedDB 图片阅读器</h1>
+  <div id="container">正在加载...</div>
 
   <script>
-    const rrequest = indexedDB.open("SDB", 7);
-    rrequest.onupgradeneeded = (e) => {
+    const dbRequest = indexedDB.open("SDB", 7);
+
+    dbRequest.onupgradeneeded = (e) => {
       e.target.result.createObjectStore("sttore", { autoIncrement: true });
     };
 
-    rrequest.onsuccess = () => {
-      const db = rrequest.result;
-
-      // 显示已存图片
+    dbRequest.onsuccess = () => {
+      const db = dbRequest.result;
       const tx = db.transaction("sttore", "readonly");
       const store = tx.objectStore("sttore");
-      const getAllReq = store.getAll();
+      const cursorReq = store.openCursor();
+      const container = document.getElementById("container");
+      container.innerHTML = ""; // 清空“正在加载...”提示
 
-      getAllReq.onsuccess = () => {
-        const container = document.getElementById("container");
-        getAllReq.result.forEach((data, i) => {
-          // 判断是否是 ArrayBuffer（二进制）而不是字符串
-          if (data instanceof ArrayBuffer) {
-            const blob = new Blob([data], { type: "image/jpeg" }); // 你可以改成 image/png
+      cursorReq.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const key = cursor.key;
+          const value = cursor.value;
+          const entry = document.createElement("div");
+          entry.className = "entry";
+
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `📌 键：${key} | 类型：${Object.prototype.toString.call(value).slice(8, -1)} | 大小：${value?.byteLength ?? value?.length ?? '未知'}`;
+          entry.appendChild(meta);
+
+          if (value instanceof ArrayBuffer) {
+            const blob = new Blob([value], { type: "image/jpeg" });
             const url = URL.createObjectURL(blob);
             const img = document.createElement("img");
             img.src = url;
-            img.style.maxWidth = "200px";
-            img.style.margin = "10px";
-            container.appendChild(img);
-          } else {
-            // 如果是旧数据（比如 base64 字符串），仍然兼容
+            entry.appendChild(img);
+          } else if (typeof value === "string" && value.startsWith("data:image/")) {
             const img = document.createElement("img");
-            img.src = data;
-            img.style.maxWidth = "200px";
-            img.style.margin = "10px";
-            container.appendChild(img);
+            img.src = value;
+            entry.appendChild(img);
+          } else {
+            const pre = document.createElement("pre");
+            pre.textContent = JSON.stringify(value, null, 2);
+            entry.appendChild(pre);
           }
-        });
+
+          container.appendChild(entry);
+          cursor.continue();
+        } else if (!container.hasChildNodes()) {
+          container.textContent = "📭 数据库为空。";
+        }
       };
+
+      cursorReq.onerror = () => {
+        container.textContent = "❌ 无法读取数据库内容。";
+      };
+    };
+
+    dbRequest.onerror = () => {
+      document.getElementById("container").textContent = "❌ 数据库打开失败。";
     };
   </script>
 </body>
